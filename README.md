@@ -4,9 +4,13 @@ A high-performance limit order book matching engine written in C++17. Implements
 
 ## Performance
 
-- **3.5M+ orders/second** (optimized build)
-- **920K orders/second** (unoptimized)
-- **Sub-microsecond latency** per order on modern hardware
+Run the included benchmark to measure throughput on your hardware:
+
+```bash
+./build/benchmark
+```
+
+The benchmark processes 1 million random orders and reports orders per second and average latency.
 
 ## Features
 
@@ -224,8 +228,4 @@ Timestamps are in nanoseconds relative to the start time.
 
 ## License
 
-See LICENSE file for details.
-
-## Contributing
-
-Contributions are welcome. Please ensure code follows the existing style and passes all tests before submitting pull requests.
+MIT License. See LICENSE file for details.

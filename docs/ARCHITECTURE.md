@@ -138,13 +138,13 @@ M = number of orders matched (typically 1-10)
 
 ### Benchmark Results
 
-Hardware: Modern x86_64 processor
+Run `./build/benchmark` to measure performance on your system. The benchmark processes 1 million random orders and reports throughput metrics.
 
-| Configuration | Throughput | Latency |
-|--------------|-----------|---------|
-| Unoptimized (-O0) | 920K orders/sec | 1.1 us/order |
-| Optimized (-O3) | 3.5M orders/sec | 0.3 us/order |
-| Optimized (-O3 -march=native) | 4.0M+ orders/sec | 0.25 us/order |
+Results will vary based on:
+- CPU architecture and clock speed
+- Compiler optimization flags
+- System load and available memory
+- Order distribution and matching rate
 
 ## Design Decisions
 
@@ -371,31 +371,34 @@ Add network layer:
 - REST API for order management
 - Binary protocol for lowest latency
 
-## Testing Strategy
+## Testing
 
-### Unit Tests
+### Current State
 
-Not yet implemented. Recommended coverage:
+The project includes:
+- `benchmark` executable for performance testing
+- `simulation` executable for visual verification
+- `orderbook` demo for functional verification
 
-- Order matching correctness
-- Partial fill handling
-- Order cancellation
-- Price level cleanup
-- Edge cases (empty book, single order)
+### Manual Testing
 
-### Performance Tests
+Test order matching correctness by running:
+```bash
+./build/orderbook
+```
 
-Existing benchmark validates:
-- Throughput under load
-- Memory usage
-- No performance regression
+Test performance by running:
+```bash
+./build/benchmark
+```
 
-### Stress Tests
+### Future Testing
 
-Recommended additions:
-- Long-running stability tests
+Potential additions:
+- Unit test framework
+- Automated correctness tests
 - Memory leak detection with valgrind
-- Extreme scenarios (millions of orders at one price)
+- Long-running stability tests
 
 ## Future Optimizations
 
