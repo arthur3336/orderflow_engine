@@ -220,7 +220,7 @@ Benefits of caching iterator:
 OrderBook::addOrder(Order order)
     |
     v
-matchOrder(order, trades)  // Attempt to match
+fillLimitOrder(order, trades)  // Attempt to match
     |
     +-- If BUY: match against asks (ascending price)
     |   |

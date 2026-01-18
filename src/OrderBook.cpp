@@ -37,106 +37,137 @@ namespace orderbook {
 
     }
 
-    std::vector<Trade> OrderBook::matchOrder(Order& order) {
+    // Match against all orders at that price level, FIFO
+    void OrderBook::fillOrderAtPriceLevel(Order& order, PriceLevel& level, std::vector<Trade>& trades) {
+        bool isBuy = (order.side == Side::BUY);
+        while (order.quantity > 0 && !level.orders.empty()) {
+            Order& front = level.orders.front(); 
+            auto fillQty = min(order.quantity, front. quantity); 
+
+            Trade trade = {
+                isBuy? order.id : front.id, 
+                isBuy? front.id : order.id, 
+                front.price.value(), 
+                fillQty, 
+                std::chrono::steady_clock::now()
+            }; 
+
+            trades.push_back(trade);
+            lastTradePrice = front.price.value();
+            lastTradeQty = fillQty;
+            order.quantity -= fillQty;
+            front.quantity -= fillQty;
+            level.totalQuantity -= fillQty;
+
+            if (front.quantity == 0) {
+                orderIndex.erase(front.id);
+                level.orders.pop_front();
+            }
+        }
+    }
+
+
+    std::vector<Trade> OrderBook::fillLimitOrder(Order& order) {
         std::vector<Trade> trades; 
-  
-        if (order.side == Side::BUY) {
-            while (order.quantity > 0 && !asks.empty()) {
-                auto it = asks.begin();
-                if (it->first > order.price) break; 
-                PriceLevel& level = it->second; 
 
-                // Match against all orders at that price level, FIFO
-                while (order.quantity > 0 && !level.orders.empty()) {
-                    Order& front = level.orders.front(); 
-                    auto fillQty = min(order.quantity, front. quantity); 
-                    Trade trade = {
-                        order.id, 
-                        front.id, 
-                        front.price, 
-                        fillQty, 
-                        std::chrono::steady_clock::now()
-                    }; 
-                    trades.push_back(trade);
-                    lastTradePrice = front.price;
-                    lastTradeQty = fillQty;
-                    order.quantity -= fillQty;
-                    front.quantity -= fillQty;
-                    level.totalQuantity -= fillQty;
+        auto matchBook = [&](auto& book, auto priceCheckFn) {
+            while (order.quantity > 0 && !book.empty()) {
+                auto it = book.begin();
+                if (priceCheckFn(it->first, order.price.value())) break;  // Use the lambda!
 
-                    if (front.quantity == 0) {
-                        orderIndex.erase(front.id);
-                        level.orders.pop_front();
-                    }
-                }
-                if (level.orders.empty()) asks.erase(it);
-            }
-        } else {
-            while (order.quantity > 0 && !bids.empty()) {
-                auto it = bids.begin();
-                if (it->first < order.price) break;
                 PriceLevel& level = it->second;
-
-                while (order.quantity > 0 && !level.orders.empty()) {
-                    Order& front = level.orders.front();
-                    auto fillQty = min(order.quantity, front.quantity);
-                    Trade trade = {
-                        front.id,    // buyer is the resting order
-                        order.id,    // seller is the incoming order
-                        front.price,
-                        fillQty,
-                        std::chrono::steady_clock::now()
-                    };
-                    trades.push_back(trade);
-                    lastTradePrice = front.price;
-                    lastTradeQty = fillQty;
-                    order.quantity -= fillQty;
-                    front.quantity -= fillQty;
-                    level.totalQuantity -= fillQty;
-
-                    if (front.quantity == 0) {
-                        orderIndex.erase(front.id);
-                        level.orders.pop_front();
-                    }
-                }
-                if (level.orders.empty()) bids.erase(it);
+                fillOrderAtPriceLevel(order, level, trades);
+                if (level.orders.empty()) book.erase(it);
             }
+        };
+
+        if (order.side == Side::BUY) {
+            matchBook(asks, [](Price best, Price limit) { return best > limit; });
+        } else {
+            matchBook(bids, [](Price best, Price limit) { return best < limit; });
         }
 
         return trades; 
     }
 
-/*
-    bool OrderBook::addOrder(Order order) {
+    std::vector<Trade> OrderBook::fillMarketOrder(Order& order) {
+        std::vector<Trade> trades; 
+
+        auto matchBook = [&](auto& book) {
+            while (order.quantity > 0 && !book.empty()) {
+                auto it = book.begin();
+                PriceLevel& level = it->second;
+                fillOrderAtPriceLevel(order, level, trades);
+                if (level.orders.empty()) book.erase(it);
+            }
+        };
+
         if (order.side == Side::BUY) {
-            PriceLevel& level = bids[order.price]; 
-            level.orders.push_back(order);
-            auto position = std::prev(level.orders.end());
-            orderIndex[order.id] = OrderLocation{order.side, order.price, position};
-            level.totalQuantity += order.quantity;
-            return true; 
+            matchBook(asks);
         } else {
-            PriceLevel& level = asks[order.price];
-            level.orders.push_back(order); 
-            auto position = std::prev(level.orders.end());
-            orderIndex[order.id] = OrderLocation{order.side, order.price, position};
-            level.totalQuantity += order.quantity;
-            return true; 
+            matchBook(bids);
         }
+
+        return trades; 
     }
-*/
 
-    std::vector<Trade> OrderBook::addOrder(Order order) {
-        // 1° Try to match the incoming order against opp book
-        std::vector<Trade> trades = matchOrder(order); 
+    OrderResult OrderBook::addOrder(Order order) {
+        OrderResult result;
+        result.remainingQuantity = order.quantity;
 
-        // 2° If remaining quantity, add to book
+        if (order.quantity <= 0) {
+            result.accepted = false;
+            result.rejectReason = "Invalid quantity: must be positive";
+            return result;
+        }
+
+        if (order.orderType == OrderType::MARKET) {
+            if (order.side == Side::BUY && asks.empty()) {
+                result.accepted = false;
+                result.rejectReason = "No liquidity: ask side empty";
+                return result;
+            }
+            if (order.side == Side::SELL && bids.empty()) {
+                result.accepted = false;
+                result.rejectReason = "No liquidity: bid side empty";
+                return result;
+            }
+            
+            // Match market order
+            result.accepted = true;
+            result.trades = fillMarketOrder(order);
+            result.remainingQuantity = order.quantity;
+
+            return result;
+        }
+
+        // Step 3: Handle LIMIT orders
+        // Validate price exists
+        if (!order.price.has_value()) {
+            result.accepted = false;
+            result.rejectReason = "Limit order requires price";
+            return result;
+        }
+
+        // Validate price is positive
+        if (order.price.value() <= 0) {
+            result.accepted = false;
+            result.rejectReason = "Invalid price: must be positive";
+            return result;
+        }
+
+        // Match limit order
+        result.accepted = true;
+        result.trades = fillLimitOrder(order);
+        result.remainingQuantity = order.quantity;
+
+        // Add to book if not fully filled
         if (order.quantity > 0) {
             auto addToBook = [&](auto& book) {
-                PriceLevel& level = book[order.price];
+                PriceLevel& level = book[order.price.value()];
                 level.orders.push_back(order); 
                 auto position = std::prev(level.orders.end()); 
-                orderIndex[order.id] = OrderLocation{order.side, order.price, position};
+                orderIndex[order.id] = OrderLocation{order.side, order.price.value(), position};
                 level.totalQuantity += order.quantity; 
             };
 
@@ -147,7 +178,7 @@ namespace orderbook {
             }
         }
         
-        return trades; 
+        return result; 
     } 
 
     bool OrderBook::cancelOrder(OrderId id) {
