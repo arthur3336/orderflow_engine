@@ -17,12 +17,14 @@ std::mt19937 gen(rd());
 std::uniform_int_distribution<int> sideDist(0, 1);
 std::uniform_int_distribution<Price> priceDist(9800, 10200);
 std::uniform_int_distribution<Quantity> qtyDist(10, 100);
+std::uniform_int_distribution<int> traderDist(1, 100);  // 100 simulated traders
 
 Order generateOrder(OrderId& nextId) {
     Side side = sideDist(gen) == 0 ? Side::BUY : Side::SELL;
     Price price = priceDist(gen);
     Quantity qty = qtyDist(gen);
-    return {nextId++, price, qty, side, now()};
+    std::string traderId = "T" + std::to_string(traderDist(gen));
+    return Order::Limit(nextId++, price, qty, side, traderId, STPMode::DECREMENT_AND_CANCEL);
 }
 
 int main() {
@@ -32,7 +34,7 @@ int main() {
 
     // Seed with initial orders
     for (int i = 0; i < 100; ++i) {
-        book.addOrder(generateOrder(nextId));
+        book.addOrderToBook(generateOrder(nextId));
     }
 
     const int NUM_ORDERS = 1'000'000;  // 1 million orders
@@ -43,8 +45,8 @@ int main() {
 
     for (int i = 0; i < NUM_ORDERS; ++i) {
         Order order = generateOrder(nextId);
-        auto trades = book.addOrder(order);
-        tradeCount += trades.size();
+        auto result = book.addOrderToBook(order);
+        tradeCount += result.trades.size();
     }
 
     auto end = std::chrono::high_resolution_clock::now();

@@ -31,13 +31,15 @@ std::mt19937 gen(rd());     // Fast pseudo-random generator
 std::uniform_int_distribution<int> sideDist(0, 1);
 std::uniform_int_distribution<Price> priceDist(9800, 10200);  // $98.00 - $102.00
 std::uniform_int_distribution<Quantity> qtyDist(10, 100);
+std::uniform_int_distribution<int> traderDist(1, 10);  // 10 simulated traders
 
 // Generate a random order
 Order generateOrder(OrderId& nextId) {
     Side side = sideDist(gen) == 0 ? Side::BUY : Side::SELL;
     Price price = priceDist(gen);
     Quantity qty = qtyDist(gen);
-    return {nextId++, price, qty, side, now()};
+    std::string traderId = "Trader" + std::to_string(traderDist(gen));
+    return Order::Limit(nextId++, price, qty, side, traderId, STPMode::DECREMENT_AND_CANCEL);
 }
 
 int main() {
@@ -49,7 +51,7 @@ int main() {
     // Seed the book with some initial orders
     std::cout << "Seeding order book..." << std::endl;
     for (int i = 0; i < 20; ++i) {
-        book.addOrder(generateOrder(nextId));
+        book.addOrderToBook(generateOrder(nextId));
     }
 
     std::cout << "\n=== SIMULATION STARTED (Ctrl+C to stop) ===\n" << std::endl;
@@ -60,10 +62,10 @@ int main() {
     while (true) {
         // Generate and submit a random order
         Order order = generateOrder(nextId);
-        auto trades = book.addOrder(order);
+        auto result = book.addOrderToBook(order);
 
         // Count trades
-        tradeCount += trades.size();
+        tradeCount += result.trades.size();
 
         // Record snapshot for later analysis
         history.record(book.getSnapshot());
@@ -76,9 +78,9 @@ int main() {
                   << "  |  $" << priceToString(book.getSpread())
                   << "  |  ";
 
-        if (!trades.empty()) {
+        if (!result.trades.empty()) {
             // Show the most recent trade
-            const Trade& t = trades.back();
+            const Trade& t = result.trades.back();
             std::cout << t.quantity << " @ $" << priceToString(t.price) << "   ";
         } else {
             std::cout << "              ";  // Clear previous trade display

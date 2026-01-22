@@ -217,7 +217,7 @@ Benefits of caching iterator:
 ### Add Order Flow
 
 ```
-OrderBook::addOrder(Order order)
+OrderBook::addOrderToBook(Order order)
     |
     v
 fillLimitOrder(order, trades)  // Attempt to match

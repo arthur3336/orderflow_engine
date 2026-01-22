@@ -57,7 +57,7 @@ OrderBook book;
 OrderId nextId = 1;
 
 // Add orders and capture trades
-auto trades = book.addOrder(Order{
+auto trades = book.addOrderToBook(Order{
     nextId++,           // Unique ID
     10050,             // Price (in cents, so $100.50)
     100,               // Quantity

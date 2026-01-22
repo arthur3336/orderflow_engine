@@ -94,7 +94,7 @@ Orders are matched using price-time priority:
 #### Adding Orders
 
 ```cpp
-std::vector<Trade> addOrder(const Order& order)
+std::vector<Trade> addOrderToBook(const Order& order)
 ```
 
 Attempts to match the order against existing orders. Returns all executed trades.
@@ -161,11 +161,11 @@ int main() {
 
     // Add a sell order: 100 shares @ $100.50
     Order sellOrder{1, 10050, 100, Side::SELL, now()};
-    auto trades = book.addOrder(sellOrder);
+    auto trades = book.addOrderToBook(sellOrder);
 
     // Add a buy order: 50 shares @ $101.00
     Order buyOrder{2, 10100, 50, Side::BUY, now()};
-    trades = book.addOrder(buyOrder);
+    trades = book.addOrderToBook(buyOrder);
 
     // trades vector now contains the executed trade
     for (const auto& trade : trades) {

@@ -6,6 +6,8 @@
 #include <iostream>
 #include <iomanip>
 
+using namespace orderbook;
+
 void printTrade(const Trade& trade) {
     std::cout << "Trade executed: "
               << trade.quantity << " shares @ "
@@ -22,14 +24,10 @@ void printMarketData(const OrderBook& book) {
     auto mid = book.getMidPrice();
 
     std::cout << "\nMarket Data:" << std::endl;
-    std::cout << "  Best Bid: "
-              << (bestBid ? priceToString(*bestBid) : "N/A") << std::endl;
-    std::cout << "  Best Ask: "
-              << (bestAsk ? priceToString(*bestAsk) : "N/A") << std::endl;
-    std::cout << "  Spread:   "
-              << (spread ? priceToString(*spread) : "N/A") << std::endl;
-    std::cout << "  Mid:      "
-              << (mid ? priceToString(*mid) : "N/A") << std::endl;
+    std::cout << "  Best Bid: " << priceToString(bestBid) << std::endl;
+    std::cout << "  Best Ask: " << priceToString(bestAsk) << std::endl;
+    std::cout << "  Spread:   " << priceToString(spread) << std::endl;
+    std::cout << "  Mid:      " << priceToString(mid) << std::endl;
 }
 
 int main() {
@@ -41,23 +39,23 @@ int main() {
 
     // Add some initial sell orders (asks)
     std::cout << "Adding sell orders...\n";
-    book.addOrder(Order{nextId++, 10100, 50, Side::SELL, now()});   // 50 @ $101.00
-    book.addOrder(Order{nextId++, 10150, 75, Side::SELL, now()});   // 75 @ $101.50
-    book.addOrder(Order{nextId++, 10200, 100, Side::SELL, now()});  // 100 @ $102.00
+    book.addOrderToBook(Order::Limit(nextId++, 10100, 50, Side::SELL, "Alice", STPMode::CANCEL_NEWEST));   // 50 @ $101.00
+    book.addOrderToBook(Order::Limit(nextId++, 10150, 75, Side::SELL, "Bob", STPMode::CANCEL_NEWEST));     // 75 @ $101.50
+    book.addOrderToBook(Order::Limit(nextId++, 10200, 100, Side::SELL, "Charlie", STPMode::CANCEL_NEWEST)); // 100 @ $102.00
 
     // Add some initial buy orders (bids)
     std::cout << "Adding buy orders...\n";
-    book.addOrder(Order{nextId++, 10050, 60, Side::BUY, now()});    // 60 @ $100.50
-    book.addOrder(Order{nextId++, 10000, 80, Side::BUY, now()});    // 80 @ $100.00
-    book.addOrder(Order{nextId++, 9950, 100, Side::BUY, now()});    // 100 @ $99.50
+    book.addOrderToBook(Order::Limit(nextId++, 10050, 60, Side::BUY, "Dave", STPMode::CANCEL_NEWEST));     // 60 @ $100.50
+    book.addOrderToBook(Order::Limit(nextId++, 10000, 80, Side::BUY, "Eve", STPMode::CANCEL_NEWEST));      // 80 @ $100.00
+    book.addOrderToBook(Order::Limit(nextId++, 9950, 100, Side::BUY, "Frank", STPMode::CANCEL_NEWEST));    // 100 @ $99.50
 
     printMarketData(book);
 
     // Execute a market buy order that crosses the spread
     std::cout << "\n\nPlacing aggressive buy order (100 @ $101.50)...\n";
-    auto trades = book.addOrder(Order{nextId++, 10150, 100, Side::BUY, now()});
+    auto result = book.addOrderToBook(Order::Limit(nextId++, 10150, 100, Side::BUY, "Grace", STPMode::CANCEL_NEWEST));
 
-    for (const auto& trade : trades) {
+    for (const auto& trade : result.trades) {
         printTrade(trade);
     }
 
@@ -65,9 +63,9 @@ int main() {
 
     // Execute a market sell order
     std::cout << "\n\nPlacing aggressive sell order (70 @ $100.00)...\n";
-    trades = book.addOrder(Order{nextId++, 10000, 70, Side::SELL, now()});
+    result = book.addOrderToBook(Order::Limit(nextId++, 10000, 70, Side::SELL, "Henry", STPMode::CANCEL_NEWEST));
 
-    for (const auto& trade : trades) {
+    for (const auto& trade : result.trades) {
         printTrade(trade);
     }
 
