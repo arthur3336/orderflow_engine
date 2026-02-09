@@ -5,7 +5,7 @@
 
 void printTrades(const std::vector<orderbook::Trade>& trades) {
     for (const auto& t : trades) {
-        std::cout << "  TRADE: " << t.quantity << " shares @ $"
+        std::cout << "  TRADE #" << t.tradeId << ": " << t.quantity << " shares @ $"
                   << orderbook::priceToString(t.price)
                   << " (buyer=" << t.buyOrderId << ", seller=" << t.sellOrderId << ")"
                   << std::endl;
@@ -78,6 +78,38 @@ int main() {
     result = book.addOrderToBook(Order::Limit(12, 10200, 500, Side::BUY, "TraderL", STPMode::CANCEL_NEWEST, TimeInForce::IOC));
     printResult(result);
     history.record(book.getSnapshot());
+
+    // Test ORDER MODIFICATION
+    // Add fresh orders to modify against a book with both sides
+    book.addOrderToBook(Order::Limit(20, 9900, 100, Side::BUY, "TraderM", STPMode::CANCEL_NEWEST));
+    book.addOrderToBook(Order::Limit(21, 10300, 80, Side::SELL, "TraderN", STPMode::CANCEL_NEWEST));
+
+    std::cout << "\n=== ORDER BOOK BEFORE MODIFICATIONS ===" << std::endl;
+    book.print();
+
+    // Case 1: Quantity decrease (keeps time priority)
+    std::cout << "\n--- Modifying order #20: qty 100 -> 60 (same price) ---" << std::endl;
+    auto modResult = book.modifyOrder(20, 9900, 60);
+    std::cout << "  " << (modResult.accepted ? "ACCEPTED" : "REJECTED: " + modResult.rejectReason)
+              << " (was " << modResult.oldQuantity << " @ $" << priceToString(modResult.oldPrice)
+              << " -> " << modResult.newQuantity << " @ $" << priceToString(modResult.newPrice) << ")" << std::endl;
+
+    // Case 2: Price change (loses time priority)
+    std::cout << "\n--- Modifying order #20: price $99.00 -> $99.50 ---" << std::endl;
+    modResult = book.modifyOrder(20, 9950, 60);
+    std::cout << "  " << (modResult.accepted ? "ACCEPTED" : "REJECTED: " + modResult.rejectReason)
+              << " (was " << modResult.oldQuantity << " @ $" << priceToString(modResult.oldPrice)
+              << " -> " << modResult.newQuantity << " @ $" << priceToString(modResult.newPrice) << ")" << std::endl;
+
+    // Case 3: Reject — buy price would cross spread (>= best ask $103.00)
+    std::cout << "\n--- Modifying order #20: price $99.50 -> $105.00 (should fail — crosses spread) ---" << std::endl;
+    modResult = book.modifyOrder(20, 10500, 60);
+    std::cout << "  " << (modResult.accepted ? "ACCEPTED" : "REJECTED: " + modResult.rejectReason) << std::endl;
+
+    // Case 4: Reject — order not found
+    std::cout << "\n--- Modifying order #999 (should fail — not found) ---" << std::endl;
+    modResult = book.modifyOrder(999, 9900, 50);
+    std::cout << "  " << (modResult.accepted ? "ACCEPTED" : "REJECTED: " + modResult.rejectReason) << std::endl;
 
     std::cout << "\n=== FINAL ORDER BOOK ===" << std::endl;
     book.print();

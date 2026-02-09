@@ -1,0 +1,11 @@
+**/target/
+build/
+.git/
+*.o
+*.a
+*.so
+docs/
+tests/
+examples/
+*.md
+price_history.csv

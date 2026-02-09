@@ -44,3 +44,6 @@ target_include_directories(simulation PRIVATE
 target_include_directories(benchmark PRIVATE
     ${PROJECT_SOURCE_DIR}/include
 )
+
+# C FFI wrapper library
+add_subdirectory(ffi)

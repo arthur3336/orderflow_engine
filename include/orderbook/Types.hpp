@@ -29,6 +29,7 @@ namespace orderbook {
     // we only change it here.
 
     using OrderId = uint64_t;      // Unique identifier for each order
+    using TradeId = uint64_t;      // Unique identifier for each trade/fill
     using Quantity = int64_t;      // Number of shares/units (signed for safe arithmetic)
     using Price = int64_t;         // Price in cents (2 decimal places, signed for safe arithmetic)
 
@@ -68,10 +69,11 @@ namespace orderbook {
     struct Order;  // tells compiler "Order exists, details later"
 
     struct Trade {
-        OrderId buyOrderId; 
-        OrderId sellOrderId; 
-        Price price; 
+        TradeId tradeId;
+        OrderId buyOrderId;
+        OrderId sellOrderId;
+        Price price;
         Quantity quantity;
-        Timestamp time; 
+        Timestamp time;
     }; 
 }

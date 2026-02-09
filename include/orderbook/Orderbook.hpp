@@ -48,8 +48,17 @@ namespace orderbook {
         std::string rejectReason;           // If rejected, why?
         std::vector<Trade> trades;          // Trades generated
         Quantity remainingQuantity = 0;     // Unfilled quantity
-        STPResult stpResult; 
+        STPResult stpResult;
+    };
 
+    // Result of modifying an order
+    struct ModifyResult {
+        bool accepted = false;
+        std::string rejectReason;
+        Price oldPrice = 0;
+        Price newPrice = 0;
+        Quantity oldQuantity = 0;
+        Quantity newQuantity = 0;
     };
 
     class OrderBook {
@@ -83,12 +92,15 @@ namespace orderbook {
                 };
             }
 
+            ModifyResult modifyOrder(OrderId id, Price newPrice, Quantity newQuantity);
+
         private:
             std::map<Price, PriceLevel, std::greater<Price>> bids;
             std::map<Price, PriceLevel> asks;
             std::unordered_map<OrderId, OrderLocation> orderIndex;
             Price lastTradePrice = 0;
             Quantity lastTradeQty = 0;
+            TradeId nextTradeId = 1;
 
             std::vector<Trade> fillLimitOrder(Order& order);
             std::vector<Trade> fillMarketOrder(Order& order);

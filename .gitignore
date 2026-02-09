@@ -77,3 +77,4 @@ gmon.out
 # Backup files
 *.bak
 *.orig
+**/target/

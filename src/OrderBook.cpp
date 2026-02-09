@@ -138,10 +138,11 @@ namespace orderbook {
             auto fillQty = std::min(incomingOrder.quantity, restingOrder.quantity); 
 
             Trade trade = {
-                isBuy ? incomingOrder.id : restingOrder.id, 
-                isBuy ? restingOrder.id : incomingOrder.id, 
-                restingOrder.price.value(), 
-                fillQty, 
+                nextTradeId++,
+                isBuy ? incomingOrder.id : restingOrder.id,
+                isBuy ? restingOrder.id : incomingOrder.id,
+                restingOrder.price.value(),
+                fillQty,
                 std::chrono::steady_clock::now()
             }; 
 
@@ -318,5 +319,97 @@ namespace orderbook {
         return true; 
     }
 
+    ModifyResult OrderBook::modifyOrder(OrderId id, Price newPrice, Quantity newQuantity) {
+        ModifyResult result;
+
+        // 1. Order must exist
+        auto indexIt = orderIndex.find(id);
+        if (indexIt == orderIndex.end()) {
+            result.rejectReason = "Order not found";
+            return result;
+        }
+
+        // 2. New quantity must be positive
+        if (newQuantity <= 0) {
+            result.rejectReason = "Quantity must be positive";
+            return result;
+        }
+
+        // 3. New price must be positive
+        if (newPrice <= 0) {
+            result.rejectReason = "Price must be positive";
+            return result;
+        }
+
+        // 4. Reject if new price would cross the spread
+        auto& loc = indexIt->second;
+        if (loc.side == Side::BUY && !asks.empty() && newPrice >= asks.begin()->first) {
+            result.rejectReason = "Buy price would cross spread (>= best ask)";
+            return result;
+        }
+        if (loc.side == Side::SELL && !bids.empty() && newPrice <= bids.begin()->first) {
+            result.rejectReason = "Sell price would cross spread (<= best bid)";
+            return result;
+        }
+
+        // Capture old values
+        Order& order = *(loc.position);
+        Price oldPrice = order.price.value();
+        Quantity oldQuantity = order.quantity;
+
+        result.oldPrice = oldPrice;
+        result.oldQuantity = oldQuantity;
+        result.newPrice = newPrice;
+        result.newQuantity = newQuantity;
+
+        // Generic lambda that works with either book type (bids or asks)
+        auto doModify = [&](auto& book) {
+            // --- SAME PRICE: quantity-only change ---
+            if (newPrice == oldPrice) {
+                Quantity delta = newQuantity - oldQuantity;
+                order.quantity = newQuantity;
+                book[oldPrice].totalQuantity += delta;
+
+                // Quantity increase loses time priority — move to back of queue
+                if (newQuantity > oldQuantity) {
+                    PriceLevel& level = book[oldPrice];
+                    level.orders.splice(level.orders.end(), level.orders, loc.position);
+                    loc.position = std::prev(level.orders.end());
+                }
+                return;
+            }
+
+            // --- DIFFERENT PRICE: remove from old level, insert at new level ---
+
+            // Remove from old price level
+            PriceLevel& oldLevel = book[oldPrice];
+            oldLevel.totalQuantity -= oldQuantity;
+            Order movedOrder = *loc.position;  // copy before erasing
+            oldLevel.orders.erase(loc.position);
+            if (oldLevel.orders.empty()) book.erase(oldPrice);
+
+            // Update the order
+            movedOrder.price = newPrice;
+            movedOrder.quantity = newQuantity;
+            movedOrder.timestamp = now();
+
+            // Insert at new price level
+            PriceLevel& newLevel = book[newPrice];
+            newLevel.orders.push_back(movedOrder);
+            newLevel.totalQuantity += newQuantity;
+
+            // Update the index
+            orderIndex[id] = OrderLocation{loc.side, newPrice, std::prev(newLevel.orders.end())};
+        };
+
+        if (loc.side == Side::BUY) {
+            doModify(bids);
+        } else {
+            doModify(asks);
+        }
+
+        result.accepted = true;
+        return result;
+    }
 
 }
